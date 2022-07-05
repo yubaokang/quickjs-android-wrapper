@@ -2,8 +2,18 @@
 // Created by yonglan.whl on 2021/7/14.
 //
 #include "quickjs_wrapper.h"
+#include <jni.h>
 
 // util
+// 获取Java Class 的getName方法返回值
+//String.class.getName()
+//returns "java.lang.String"
+//byte.class.getName()
+//returns "byte"
+//(new Object[3]).getClass().getName()
+//returns "[Ljava.lang.Object;"
+//(new int[3][4][5][6][7][8][9]).getClass().getName()
+//returns "[[[[[[[I"
 static string getJavaName(JNIEnv* env, jobject javaClass) {
     auto classType = env->GetObjectClass(javaClass);
     const auto method = env->GetMethodID(classType, "getName", "()Ljava/lang/String;");
@@ -17,6 +27,8 @@ static string getJavaName(JNIEnv* env, jobject javaClass) {
     return str;
 }
 
+//抛出一个指定的Java错误类型
+//如：throwJavaException(env, "java/lang/IllegalArgumentException", "Unsupported Java type %s",typeName.c_str());
 static void throwJavaException(JNIEnv *env, const char *exceptionClass, const char *fmt, ...) {
     char msg[512];
     va_list args;
