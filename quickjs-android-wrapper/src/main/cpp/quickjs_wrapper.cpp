@@ -5,15 +5,21 @@
 #include <jni.h>
 
 // util
-// 获取Java Class 的getName方法返回值
-//String.class.getName()
-//returns "java.lang.String"
-//byte.class.getName()
-//returns "byte"
-//(new Object[3]).getClass().getName()
-//returns "[Ljava.lang.Object;"
-//(new int[3][4][5][6][7][8][9]).getClass().getName()
-//returns "[[[[[[[I"
+
+/**
+ * todo 获取Java Class 的getName方法返回值
+ * String.class.getName()
+ * returns "java.lang.String"
+ * byte.class.getName()
+ * returns "byte"
+ * (new Object[3]).getClass().getName()
+ * returns "[Ljava.lang.Object;"
+ * (new int[3][4][5][6][7][8][9]).getClass().getName()
+ * returns "[[[[[[[I"
+ * @param env
+ * @param javaClass
+ * @return
+ */
 static string getJavaName(JNIEnv* env, jobject javaClass) {
     auto classType = env->GetObjectClass(javaClass);
     const auto method = env->GetMethodID(classType, "getName", "()Ljava/lang/String;");
@@ -27,8 +33,8 @@ static string getJavaName(JNIEnv* env, jobject javaClass) {
     return str;
 }
 
-//抛出一个指定的Java错误类型
-//如：throwJavaException(env, "java/lang/IllegalArgumentException", "Unsupported Java type %s",typeName.c_str());
+//todo 抛出一个指定的Java错误类型
+//todo 如：throwJavaException(env, "java/lang/IllegalArgumentException", "Unsupported Java type %s",typeName.c_str());
 static void throwJavaException(JNIEnv *env, const char *exceptionClass, const char *fmt, ...) {
     char msg[512];
     va_list args;
@@ -281,6 +287,7 @@ QuickJSWrapper::QuickJSWrapper(JNIEnv *env) {
 
     js_std_add_helpers(context);
 
+    //todo NewGlobalRef 创建全局引用
     objectClass = (jclass)(jniEnv->NewGlobalRef(jniEnv->FindClass("java/lang/Object")));
     booleanClass = (jclass)(jniEnv->NewGlobalRef(jniEnv->FindClass("java/lang/Boolean")));
     integerClass = (jclass)(jniEnv->NewGlobalRef(jniEnv->FindClass("java/lang/Integer")));
@@ -310,6 +317,7 @@ QuickJSWrapper::QuickJSWrapper(JNIEnv *env) {
 }
 
 QuickJSWrapper::~QuickJSWrapper() {
+    //todo 在析构函数中 释放全局引用
     jniEnv->DeleteGlobalRef(objectClass);
     jniEnv->DeleteGlobalRef(doubleClass);
     jniEnv->DeleteGlobalRef(integerClass);
@@ -323,36 +331,48 @@ QuickJSWrapper::~QuickJSWrapper() {
 
     map<jlong, JSValue>::iterator i;
     for (i = values.begin(); i != values.end(); ++i) {
+        //todo i->second 标识拿到map的value,也就是JSValue
         JSValue item = i->second;
+        //todo 释放JSValue
         JS_FreeValue(context, item);
     }
+    //todo 清除map
     values.clear();
 
+    //todo 释放JSContext
     JS_FreeContext(context);
 
     // todo try catch
     // void JS_FreeRuntime(JSRuntime *): assertion "list_empty(&rt->gc_obj_list)" failed
+    //todo 最后释放JSRuntime
     JS_FreeRuntime(runtime);
 }
 
+//todo 将JSObject 转换成jni层的jobject
 jobject QuickJSWrapper::toJavaObject(JNIEnv *env, jobject thiz, JSValueConst& this_obj, JSValueConst& value, bool hold){
     jobject result;
+    //todo 判断JSValue的类型，然后返回jni层的jobject
     switch (JS_VALUE_GET_NORM_TAG(value)) {
+        //todo 异常错误-->nullptr
         case JS_TAG_EXCEPTION: {
             result = nullptr;
             break;
         }
 
+        //todo string类型-->jstring
         case JS_TAG_STRING: {
             const char* string = JS_ToCString(context, value);
             result = env->NewStringUTF(string);
+            //todo 及时释放string引用
             JS_FreeCString(context, string);
             break;
         }
 
+        //todo Bool类型-->jboolean
         case JS_TAG_BOOL: {
             jvalue v;
             v.z = static_cast<jboolean>(JS_VALUE_GET_BOOL(value));
+            //todo 调用Java Boolean的valueOf方法
             result = env->CallStaticObjectMethodA(booleanClass, booleanValueOf, &v);
             break;
         }
@@ -407,11 +427,15 @@ jobject QuickJSWrapper::evaluate(JNIEnv *env, jobject thiz, jstring script, jstr
 
     JSValue result = evaluate(c_script, c_file_name);
 
+    //todo 释放指针
     env->ReleaseStringUTFChars(script, c_script);
     env->ReleaseStringUTFChars(file_name, c_file_name);
 
     JSValue global = getGlobalObject();
+    //todo 将执行js的结果result转换成jobject
     jobject jsObj = toJavaObject(env, thiz, global, result);
+
+    //todo 释放global
     JS_FreeValue(context, global);
     return jsObj;
 }
@@ -443,6 +467,7 @@ JSValue QuickJSWrapper::call(JSValue &func_obj, JSValue &this_obj, int argc, JSV
 const char * QuickJSWrapper::stringify(JSValue &value) const {
     JSValue obj = JS_JSONStringify(context, value, JS_UNDEFINED, JS_UNDEFINED);
     auto result = JS_ToCString(context, checkJSException(obj));
+    //todo 用完释放
     JS_FreeValue(context, obj);
     return result;
 }
@@ -455,9 +480,11 @@ JSValue QuickJSWrapper::checkJSException(JSValue &value) const {
     return value;
 }
 
+//todo 获取全局对象
 jobject QuickJSWrapper::getGlobalObject(JNIEnv *env, jobject thiz) {
     JSValue value = getGlobalObject();
 
+    //todo JS_VALUE_GET_PTR 将value转换成jlong类型的指正
     auto value_ptr = reinterpret_cast<jlong>(JS_VALUE_GET_PTR(value));
     jobject result = env->NewObject(jsObjectClass, jsObjectInit, thiz, value_ptr);
 
